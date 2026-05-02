@@ -19,6 +19,9 @@ from qfluentwidgets import (
 
 from .theme import (
     ACCENT, ACCENT_MUTED, BORDER, CARD, INK, INK_MUTED, SURFACE, mono, serif,
+    register_for_theme, is_dark,
+    CARD_D, BORDER_D, INK_D, INK_MUTED_D,
+    CARD_L, BORDER_L, INK_L, INK_MUTED_L,
 )
 
 
@@ -31,14 +34,21 @@ class Header(QWidget):
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(4)
 
-        t = QLabel(title)
-        t.setFont(serif(36))
-        t.setStyleSheet(f"color: {INK};")
-        v.addWidget(t)
+        self._title_label = QLabel(title)
+        self._title_label.setFont(serif(36))
+        v.addWidget(self._title_label)
 
-        s = BodyLabel(subtitle)
-        s.setStyleSheet(f"color: {INK_MUTED};")
-        v.addWidget(s)
+        self._sub_label = BodyLabel(subtitle)
+        v.addWidget(self._sub_label)
+
+        self._apply_theme(is_dark())
+        register_for_theme(self._apply_theme)
+
+    def _apply_theme(self, dark: bool):
+        ink = INK_D if dark else INK_L
+        muted = INK_MUTED_D if dark else INK_MUTED_L
+        self._title_label.setStyleSheet(f"color: {ink};")
+        self._sub_label.setStyleSheet(f"color: {muted};")
 
 
 class FieldLabel(QLabel):
@@ -46,29 +56,35 @@ class FieldLabel(QLabel):
 
     def __init__(self, text: str, parent=None):
         super().__init__(text.upper(), parent)
-        f = mono(9, medium=True)
-        self.setFont(f)
-        self.setStyleSheet(f"color: {INK_MUTED}; letter-spacing: 1.5px;")
+        self.setFont(mono(9, medium=True))
+        self.setStyleSheet("letter-spacing: 1.5px;")
+        self._apply_theme(is_dark())
+        register_for_theme(self._apply_theme)
+
+    def _apply_theme(self, dark: bool):
+        muted = INK_MUTED_D if dark else INK_MUTED_L
+        self.setStyleSheet(f"color: {muted}; letter-spacing: 1.5px;")
 
 
 class Card(QFrame):
-    """Locus-styled card — cream fill, subtle border, generous interior padding.
-
-    Plain QFrame (not qfluentwidgets.CardWidget) to avoid layout-install
-    conflicts that caused infinite recursion when the framework's internal
-    layout collided with one installed here.
-    """
+    """Locus-styled card — fill, subtle border, generous interior padding."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("locusCard")
-        self.setStyleSheet(
-            f"#locusCard {{ background: {CARD}; border: 1px solid {BORDER}; "
-            f"border-radius: 12px; }}"
-        )
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(20, 18, 20, 18)
         self._layout.setSpacing(12)
+        self._apply_theme(is_dark())
+        register_for_theme(self._apply_theme)
+
+    def _apply_theme(self, dark: bool):
+        card = CARD_D if dark else CARD_L
+        border = BORDER_D if dark else BORDER_L
+        self.setStyleSheet(
+            f"#locusCard {{ background: {card}; border: 1px solid {border}; "
+            f"border-radius: 12px; }}"
+        )
 
     def add(self, widget: QWidget):
         self._layout.addWidget(widget)
@@ -94,9 +110,6 @@ class ResetButton(TransparentToolButton):
     """Tiny circular-arrow reset button that lives on the right of a field row."""
 
     def __init__(self, on_reset: Callable[[], None], parent=None):
-        # Subtle but critical: qfluentwidgets' two-arg (icon, parent) form
-        # internally calls self.__init__(parent), which on a subclass re-enters
-        # this __init__ and recurses forever. Pass only parent, set icon after.
         super().__init__(parent)
         self.setIcon(FIF.SYNC)
         self.setToolTip("Reset to default")
@@ -167,7 +180,6 @@ class ListEditor(QWidget):
         self._rows_layout.setSpacing(2)
         self._v.addWidget(self._rows_host)
 
-        # Add row
         add_row = QHBoxLayout()
         add_row.setSpacing(8)
         self._input = LineEdit()
@@ -184,7 +196,6 @@ class ListEditor(QWidget):
         self._refresh()
 
     def _refresh(self):
-        # Clear existing rows
         while self._rows_layout.count():
             item = self._rows_layout.takeAt(0)
             w = item.widget()

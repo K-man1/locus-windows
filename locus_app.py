@@ -1,9 +1,4 @@
-"""Locus — Windows desktop GUI entry point.
-
-Boots the daemon, builds a FluentWindow with four panes (Start, Settings,
-Connectors, Analytics), and polls the IPC files so the UI stays in sync
-with locusd.
-"""
+"""Locus — Windows desktop GUI entry point."""
 
 from __future__ import annotations
 
@@ -26,10 +21,10 @@ from locus_gui.config import ConfigStore
 from locus_gui.connectors import ConnectorsInterface
 from locus_gui.settings import SettingsInterface
 from locus_gui.start import StartInterface
-from locus_gui.theme import ACCENT, load_fonts, resource_dir
+from locus_gui.theme import ACCENT, load_fonts, resource_dir, apply_appearance
 
 
-# ── Daemon launch (same logic as the old tray app) ────────────────────────────
+# ── Daemon launch ─────────────────────────────────────────────────────────────
 
 _daemon_proc: subprocess.Popen | None = None
 
@@ -61,10 +56,10 @@ class MainWindow(FluentWindow):
         self.setWindowTitle("Locus")
         self.resize(1000, 680)
 
-        self.start_iface     = StartInterface()
-        self.settings_iface  = SettingsInterface(config)
+        self.start_iface      = StartInterface()
+        self.settings_iface   = SettingsInterface(config)
         self.connectors_iface = ConnectorsInterface(config)
-        self.analytics_iface = AnalyticsInterface()
+        self.analytics_iface  = AnalyticsInterface()
 
         self.addSubInterface(self.start_iface,      FIF.PLAY,    "Start")
         self.addSubInterface(self.settings_iface,   FIF.SETTING, "Settings")
@@ -75,6 +70,9 @@ class MainWindow(FluentWindow):
         )
 
         self.navigationInterface.setExpandWidth(220)
+
+        # Re-apply theme when config is saved (e.g. reload from disk)
+        config.changed.connect(lambda: apply_appearance(config.appearance))
 
 
 # ── Entry ─────────────────────────────────────────────────────────────────────
@@ -90,12 +88,20 @@ def main():
     app.setOrganizationName("Locus")
 
     load_fonts()
-    setTheme(Theme.LIGHT)
+
+    # Suppress text-selection highlight across all labels
+    app.setStyleSheet(
+        "QLabel { selection-background-color: transparent; selection-color: inherit; }"
+    )
+
+    config = ConfigStore()
+
+    # Apply initial theme before building the window so all widgets start correctly
+    apply_appearance(config.appearance)
     setThemeColor(QColor(ACCENT))
 
     start_daemon()
 
-    config = ConfigStore()
     win = MainWindow(config)
     win.show()
     sys.exit(app.exec())

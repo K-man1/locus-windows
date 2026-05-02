@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import re
+import webbrowser
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -11,39 +11,45 @@ from PySide6.QtWidgets import (
 
 from qfluentwidgets import (
     BodyLabel, CaptionLabel, FluentIcon as FIF, IconWidget, LineEdit,
-    PasswordLineEdit, PrimaryPushButton, PushButton, StrongBodyLabel, SwitchButton,
+    PrimaryPushButton, PushButton, StrongBodyLabel, SwitchButton,
     TransparentToolButton,
 )
 
 from .config import ConfigStore, ICalFeed
-from .theme import ACCENT, BORDER, CARD, INK, INK_MUTED, SURFACE, mono, serif
+from .theme import (
+    ACCENT, BORDER, CARD, INK, INK_MUTED, SURFACE, mono, serif,
+    is_dark, register_for_theme,
+    CARD_D, BORDER_D, INK_D, INK_L, INK_MUTED_D, INK_MUTED_L,
+    SURFACE_D, SURFACE_L,
+)
 from .widgets import Card, FieldLabel, Header, SaveRow
+
+NOTION_OAUTH_URL = (
+    "https://www.notion.so/install-integration"
+    "?response_type=code"
+    "&client_id=34ad872b-594c-81a3-be0a-00376b27f521"
+    "&redirect_uri=https%3A%2F%2Flocus-proxy.locus-proxy.workers.dev%2Foauth%2Fnotion"
+    "&owner=user"
+)
 
 
 def _scrollable(inner: QWidget) -> QScrollArea:
     sa = QScrollArea()
     sa.setWidgetResizable(True)
     sa.setFrameShape(QFrame.NoFrame)
-    sa.setStyleSheet(f"QScrollArea {{ background: {SURFACE}; border: none; }}")
+    sa.setStyleSheet("QScrollArea { border: none; background: transparent; }")
     sa.setWidget(inner)
     return sa
 
 
 def _content_host():
     host = QWidget()
-    host.setStyleSheet(f"background: {SURFACE};")
+    host.setObjectName("contentHost")
     v = QVBoxLayout(host)
     v.setContentsMargins(40, 36, 40, 40)
     v.setSpacing(22)
     v.setAlignment(Qt.AlignTop)
     return host, v
-
-
-def extract_notion_id(raw: str) -> str | None:
-    """Pull a 32-char hex Notion ID from a URL or raw paste."""
-    s = raw.replace("-", "")
-    m = re.search(r"[0-9a-fA-F]{32}", s)
-    return m.group(0).lower() if m else None
 
 
 # ── Notion page ───────────────────────────────────────────────────────────────
@@ -70,7 +76,6 @@ class NotionPage(QWidget):
         col.setSpacing(3)
         col.addWidget(StrongBodyLabel("Enable Notion"))
         cap = CaptionLabel("When off, Locus works entirely from custom tasks.")
-        cap.setStyleSheet(f"color: {INK_MUTED};")
         cap.setWordWrap(True)
         col.addWidget(cap)
         row.addLayout(col, 1)
@@ -81,34 +86,37 @@ class NotionPage(QWidget):
         enable.add_layout(row)
         v.addWidget(enable)
 
-        # API key card (Windows uses paste-key flow; OAuth lives on macOS)
-        key_card = Card()
-        key_card.add(FieldLabel("Account"))
-        cap2 = CaptionLabel(
-            "Paste an internal-integration token from notion.so/profile/integrations. "
-            "Share your planner database with the integration to grant access."
+        # Account card — OAuth button
+        acct_card = Card()
+        acct_card.add(FieldLabel("Account"))
+
+        sign_in_btn = PrimaryPushButton(FIF.LINK, "  Sign in with Notion")
+        sign_in_btn.setMinimumHeight(40)
+        sign_in_btn.setMinimumWidth(200)
+        sign_in_btn.setStyleSheet(
+            f"PrimaryPushButton {{ background: {ACCENT}; border-radius: 8px; "
+            f"color: white; font-weight: 600; font-size: 13px; }}"
+            f"PrimaryPushButton:hover {{ background: #F0AC2F; }}"
+            f"PrimaryPushButton:pressed {{ background: #C98D1B; }}"
         )
-        cap2.setWordWrap(True)
-        cap2.setStyleSheet(f"color: {INK_MUTED};")
-        key_card.add(cap2)
-        self.key_input = PasswordLineEdit()
-        self.key_input.setPlaceholderText("secret_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-        self.key_input.setText(self.config.notion_api_key)
-        self.key_input.textChanged.connect(lambda t: setattr(self.config, "notion_api_key", t))
-        key_card.add(self.key_input)
+        sign_in_btn.clicked.connect(self._open_oauth)
+        acct_card.add(sign_in_btn)
+
+        hint = CaptionLabel("Opens Notion in your browser. After authorizing, you'll bounce back to Locus.")
+        hint.setWordWrap(True)
+        acct_card.add(hint)
 
         status_row = QHBoxLayout()
         self.status_label = QLabel()
-        self.status_label.setStyleSheet(f"color: {INK_MUTED};")
         status_row.addWidget(self.status_label)
         status_row.addStretch(1)
         disconnect_btn = PushButton("Disconnect")
         disconnect_btn.clicked.connect(self._disconnect)
         status_row.addWidget(disconnect_btn)
-        key_card.add_layout(status_row)
-        v.addWidget(key_card)
+        acct_card.add_layout(status_row)
+        v.addWidget(acct_card)
 
-        # Database
+        # Database card
         db_card = Card()
         db_card.add(FieldLabel("Planner Database"))
         cap3 = CaptionLabel(
@@ -116,7 +124,6 @@ class NotionPage(QWidget):
             "Locus extracts the 32-character database ID automatically."
         )
         cap3.setWordWrap(True)
-        cap3.setStyleSheet(f"color: {INK_MUTED};")
         db_card.add(cap3)
 
         db_row = QHBoxLayout()
@@ -135,18 +142,20 @@ class NotionPage(QWidget):
         db_card.add(self.db_status)
         v.addWidget(db_card)
 
-        # Save row
         save = SaveRow(self._save, self.config.load)
         v.addWidget(save)
         v.addStretch(1)
 
         self._sync_from_config()
 
+    def _open_oauth(self):
+        webbrowser.open(NOTION_OAUTH_URL)
+
     def _sync_from_config(self):
         self.enable_switch.setChecked(self.config.notion_enabled)
         if self.config.notion_api_key:
-            self.status_label.setText("✓ Token saved")
-            self.status_label.setStyleSheet(f"color: {ACCENT}; font-weight: 600;")
+            self.status_label.setText("✓ Connected")
+            self.status_label.setStyleSheet(f"color: #2EA66B; font-weight: 600;")
         else:
             self.status_label.setText("Not connected")
             self.status_label.setStyleSheet(f"color: {INK_MUTED};")
@@ -156,7 +165,11 @@ class NotionPage(QWidget):
             self.db_status.setText("No database selected.")
 
     def _apply_db(self):
-        nid = extract_notion_id(self.db_input.text().strip())
+        import re
+        raw = self.db_input.text().strip()
+        s = raw.replace("-", "")
+        m = re.search(r"[0-9a-fA-F]{32}", s)
+        nid = m.group(0).lower() if m else None
         if nid:
             self.config.notion_database_id = nid
             self.db_input.setText(nid)
@@ -166,15 +179,17 @@ class NotionPage(QWidget):
         self.config.notion_api_key = ""
         self.config.notion_enabled = False
         self.config.notion_database_id = ""
-        self.key_input.setText("")
         self.db_input.setText("")
         self.config.save()
         self.config.notify_notion_changed()
         self._sync_from_config()
 
     def _save(self):
-        # Final sweep — apply pending DB input value if user typed but didn't click Use
-        nid = extract_notion_id(self.db_input.text().strip())
+        import re
+        raw = self.db_input.text().strip()
+        s = raw.replace("-", "")
+        m = re.search(r"[0-9a-fA-F]{32}", s)
+        nid = m.group(0).lower() if m else None
         if nid:
             self.config.notion_database_id = nid
         self.config.save()
@@ -200,7 +215,6 @@ class ICalPage(QWidget):
             "Subscribe to any iCal feed — Google, Apple, Outlook, school calendars.",
         ))
 
-        # Help card
         help_card = Card()
         help_card.add(FieldLabel("Where to find your URL"))
         body = CaptionLabel(
@@ -209,12 +223,10 @@ class ICalPage(QWidget):
             "• Apple iCloud → calendar.icloud.com → click your calendar → Public Calendar → copy URL.\n"
             "• Outlook → Settings → Calendar → Shared calendars → Publish a calendar → ICS link."
         )
-        body.setStyleSheet(f"color: {INK_MUTED};")
         body.setWordWrap(True)
         help_card.add(body)
         v.addWidget(help_card)
 
-        # Subscribed feeds
         self.feeds_card = Card()
         self.feeds_card.add(FieldLabel("Subscribed feeds"))
         self.feeds_host = QWidget()
@@ -224,7 +236,6 @@ class ICalPage(QWidget):
         self.feeds_card.add(self.feeds_host)
         v.addWidget(self.feeds_card)
 
-        # Add a feed
         add = Card()
         add.add(FieldLabel("Add a feed"))
         self.name_input = LineEdit()
@@ -246,7 +257,6 @@ class ICalPage(QWidget):
         self._refresh_feeds()
 
     def _refresh_feeds(self):
-        # clear
         while self.feeds_layout.count():
             it = self.feeds_layout.takeAt(0)
             w = it.widget()
@@ -255,7 +265,6 @@ class ICalPage(QWidget):
 
         if not self.config.ical_feeds:
             empty = CaptionLabel("No feeds yet. Add one below.")
-            empty.setStyleSheet(f"color: {INK_MUTED};")
             self.feeds_layout.addWidget(empty)
             return
 
@@ -317,23 +326,21 @@ class ConnectorsInterface(QWidget):
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(0)
 
-        # Sub-sidebar
-        side = QFrame()
-        side.setFixedWidth(240)
-        side.setStyleSheet(f"background: {SURFACE}; border-right: 1px solid {BORDER};")
-        sv = QVBoxLayout(side)
+        self._side = QFrame()
+        self._side.setObjectName("connectorsSide")
+        self._side.setFixedWidth(240)
+        sv = QVBoxLayout(self._side)
         sv.setContentsMargins(14, 22, 14, 14)
         sv.setSpacing(4)
 
-        title = QLabel("Connectors")
-        title.setFont(serif(26))
-        title.setStyleSheet(f"color: {INK}; padding-bottom: 8px;")
-        sv.addWidget(title)
+        self._title_label = QLabel("Connectors")
+        self._title_label.setFont(serif(26))
+        sv.addWidget(self._title_label)
 
         self._rows = []
         items = [
-            ("notion", "Notion",         "Pull assignments from your planner.",      FIF.DOCUMENT),
-            ("ical",   "Calendar (iCal)", "Subscribe to any iCal feed.",              FIF.CALENDAR),
+            ("notion", "Notion",          "Pull assignments from your planner.", FIF.DOCUMENT),
+            ("ical",   "Calendar (iCal)", "Subscribe to any iCal feed.",         FIF.CALENDAR),
         ]
         for cid, name, sub, icon in items:
             row = _ConnectorRow(name, sub, icon, on_state=lambda c=cid: self._is_enabled(c))
@@ -341,7 +348,7 @@ class ConnectorsInterface(QWidget):
             self._rows.append((cid, row))
             sv.addWidget(row)
         sv.addStretch(1)
-        h.addWidget(side)
+        h.addWidget(self._side)
 
         self.stack = QStackedWidget()
         self.notion_page = NotionPage(self.config)
@@ -351,7 +358,17 @@ class ConnectorsInterface(QWidget):
         h.addWidget(self.stack, 1)
 
         self.config.changed.connect(self._refresh_indicators)
+        self._apply_side_theme(is_dark())
+        register_for_theme(self._apply_side_theme)
         self._select("notion")
+
+    def _apply_side_theme(self, dark: bool):
+        ink = INK_D if dark else INK_L
+        border = BORDER_D if dark else BORDER
+        self._side.setStyleSheet(
+            f"#connectorsSide {{ border-right: 1px solid {border}; }}"
+        )
+        self._title_label.setStyleSheet(f"color: {ink}; padding-bottom: 8px;")
 
     def _is_enabled(self, cid: str) -> bool:
         if cid == "notion":
@@ -386,6 +403,7 @@ class _ConnectorRow(QWidget):
         self._sub = sub
         self._icon = icon
         self._build()
+        register_for_theme(lambda _: self._refresh())
 
     def _build(self):
         h = QHBoxLayout(self)
@@ -399,10 +417,9 @@ class _ConnectorRow(QWidget):
         col = QVBoxLayout()
         col.setSpacing(1)
         self._name_label = QLabel(self._name)
-        self._name_label.setStyleSheet(f"color: {INK};")
         col.addWidget(self._name_label)
         self._sub_label = QLabel("Not connected")
-        self._sub_label.setStyleSheet(f"color: {INK_MUTED}; font-size: 11px;")
+        self._sub_label.setStyleSheet("font-size: 11px;")
         col.addWidget(self._sub_label)
         h.addLayout(col, 1)
 
@@ -423,20 +440,25 @@ class _ConnectorRow(QWidget):
             self._refresh()
 
     def _refresh(self):
+        dark = is_dark()
+        ink = INK_D if dark else INK_L
+        sel_bg = "#3A3020" if dark else "#FDF3E0"
+
         if self._selected:
-            self.setStyleSheet("background: #FDF3E0; border-radius: 8px;")
-            self._name_label.setStyleSheet(f"color: {INK}; font-weight: 600;")
+            self.setStyleSheet(f"background: {sel_bg}; border-radius: 8px;")
+            self._name_label.setStyleSheet(f"color: {ink}; font-weight: 600;")
         else:
             self.setStyleSheet("background: transparent;")
-            self._name_label.setStyleSheet(f"color: {INK};")
+            self._name_label.setStyleSheet(f"color: {ink};")
 
         if self._enabled:
             self._sub_label.setText("Connected")
             self._sub_label.setStyleSheet(f"color: {ACCENT}; font-size: 11px; font-weight: 600;")
             self._dot.setStyleSheet("background: #2EA66B; border-radius: 4px;")
         else:
+            muted = INK_MUTED_D if dark else INK_MUTED_L
             self._sub_label.setText("Not connected")
-            self._sub_label.setStyleSheet(f"color: {INK_MUTED}; font-size: 11px;")
+            self._sub_label.setStyleSheet(f"color: {muted}; font-size: 11px;")
             self._dot.setStyleSheet("background: #B5AA98; border-radius: 4px;")
 
     def mousePressEvent(self, e):

@@ -14,7 +14,11 @@ from qfluentwidgets import (
 )
 
 from .config import ConfigStore, Defaults
-from .theme import ACCENT, BORDER, CARD, INK, INK_MUTED, SURFACE, mono, serif
+from .theme import (
+    ACCENT, BORDER, CARD, INK, INK_MUTED, SURFACE, mono, serif,
+    is_dark, register_for_theme,
+    SURFACE_D, SURFACE_L, BORDER_D, BORDER_L, INK_D, INK_L, INK_MUTED_D, INK_MUTED_L,
+)
 from .widgets import Card, FieldLabel, Header, ListEditor, ResetButton, SaveRow
 
 
@@ -24,14 +28,14 @@ def _scrollable(inner: QWidget) -> QScrollArea:
     sa = QScrollArea()
     sa.setWidgetResizable(True)
     sa.setFrameShape(QFrame.NoFrame)
-    sa.setStyleSheet(f"QScrollArea {{ background: {SURFACE}; border: none; }}")
+    sa.setStyleSheet("QScrollArea { border: none; background: transparent; }")
     sa.setWidget(inner)
     return sa
 
 
 def _content_host() -> tuple[QWidget, QVBoxLayout]:
     host = QWidget()
-    host.setStyleSheet(f"background: {SURFACE};")
+    host.setObjectName("contentHost")
     v = QVBoxLayout(host)
     v.setContentsMargins(40, 36, 40, 40)
     v.setSpacing(22)
@@ -70,7 +74,6 @@ def _slider_row(label: str, value: int, lo: int, hi: int, step: int, suffix: str
     v.addLayout(row)
 
     def _on_change(val):
-        # snap to step
         snapped = round(val / step) * step
         if snapped != val:
             sl.blockSignals(True)
@@ -79,7 +82,7 @@ def _slider_row(label: str, value: int, lo: int, hi: int, step: int, suffix: str
         out.setText(f"{int(snapped)} {suffix}")
         on_change(int(snapped))
     sl.valueChanged.connect(_on_change)
-    wrap._slider = sl  # for reset hook
+    wrap._slider = sl
     wrap._label = out
     wrap._suffix = suffix
     return wrap
@@ -99,11 +102,9 @@ def _toggle_row(label: str, subtitle: str, value: bool, on_change, on_reset) -> 
     text_col = QVBoxLayout()
     text_col.setSpacing(3)
     t = StrongBodyLabel(label)
-    t.setStyleSheet(f"color: {INK};")
     text_col.addWidget(t)
     if subtitle:
         s = CaptionLabel(subtitle)
-        s.setStyleSheet(f"color: {INK_MUTED};")
         s.setWordWrap(True)
         text_col.addWidget(s)
     h.addLayout(text_col, 1)
@@ -141,7 +142,6 @@ class GeneralPage(QWidget):
 
         v.addWidget(Header("General", "Appearance and global preferences."))
 
-        # Appearance card
         appearance_card = Card()
         head = QHBoxLayout()
         head.addWidget(FieldLabel("Appearance"))
@@ -156,7 +156,6 @@ class GeneralPage(QWidget):
         self.appearance_seg.setCurrentItem(self.config.appearance)
         appearance_card.add(self.appearance_seg)
 
-        # Accent swatch
         accent_row = QHBoxLayout()
         accent_row.setSpacing(12)
         swatch = QFrame()
@@ -167,28 +166,26 @@ class GeneralPage(QWidget):
         col.setSpacing(2)
         col.addWidget(StrongBodyLabel("Accent colour"))
         cap = CaptionLabel("Warm amber — fixed")
-        cap.setStyleSheet(f"color: {INK_MUTED};")
         col.addWidget(cap)
         accent_row.addLayout(col)
         accent_row.addStretch(1)
         appearance_card.add_layout(accent_row)
 
         v.addWidget(appearance_card)
-
         v.addWidget(SaveRow(self.config.save, self.config.load))
-
         v.addStretch(1)
 
-        # Reset all (destructive) at the bottom
         v.addWidget(_hr())
         reset_btn = QLabel('<a style="color:%s; text-decoration:none;" href="#">⟳  Reset All Settings</a>' % "#D6453A")
         reset_btn.setTextFormat(Qt.RichText)
         reset_btn.linkActivated.connect(self._confirm_reset)
-        reset_btn.setStyleSheet(f"font-weight: 600; padding-top: 4px;")
+        reset_btn.setStyleSheet("font-weight: 600; padding-top: 4px;")
         v.addWidget(reset_btn)
 
     def _set_appearance(self, val: str):
         self.config.appearance = val
+        from .theme import apply_appearance
+        apply_appearance(val)
 
     def _reset_appearance(self):
         self.config.appearance = Defaults.appearance
@@ -219,7 +216,6 @@ class BlockingPage(QWidget):
 
         v.addWidget(Header("Blocking", "Timing, polling, and AI strictness."))
 
-        # Timing card
         timing = Card()
 
         self.temp_slider = _slider_row(
@@ -258,7 +254,6 @@ class BlockingPage(QWidget):
             "How often running GUI apps are checked against the blocklist."))
         v.addWidget(timing)
 
-        # Override code
         override = Card()
         head = QHBoxLayout()
         head.addWidget(FieldLabel("Override Code"))
@@ -267,7 +262,6 @@ class BlockingPage(QWidget):
         override.add_layout(head)
         cap = CaptionLabel('Typed to bypass the lock. Default is "bob". Set to the first 100 digits of π for maximum security.')
         cap.setWordWrap(True)
-        cap.setStyleSheet(f"color: {INK_MUTED};")
         override.add(cap)
         self.override_input = PasswordLineEdit()
         self.override_input.setText(self.config.override_code)
@@ -275,7 +269,6 @@ class BlockingPage(QWidget):
         override.add(self.override_input)
         v.addWidget(override)
 
-        # Harshness
         harsh = Card()
         head2 = QHBoxLayout()
         head2.addWidget(FieldLabel("AI Harshness"))
@@ -284,7 +277,6 @@ class BlockingPage(QWidget):
         harsh.add_layout(head2)
         cap2 = CaptionLabel("Controls how strictly the AI evaluates your justifications.")
         cap2.setWordWrap(True)
-        cap2.setStyleSheet(f"color: {INK_MUTED};")
         harsh.add(cap2)
 
         self.harsh_seg = SegmentedWidget()
@@ -305,7 +297,6 @@ class BlockingPage(QWidget):
         col.addWidget(slider_wrap)
         cap = CaptionLabel(caption)
         cap.setWordWrap(True)
-        cap.setStyleSheet(f"color: {INK_MUTED};")
         col.addWidget(cap)
         return wrap
 
@@ -337,12 +328,10 @@ class AllowlistsPage(QWidget):
         v.addWidget(Header("Allowlists",
             "Always-allowed apps and domains, regardless of session."))
 
-        # Apps
         apps_card = Card()
         apps_card.add(FieldLabel("Always-Allowed Apps"))
         cap = CaptionLabel('These apps are never blocked, even outside the session whitelist. Add the exact process name (e.g. "Notion", "Slack").')
         cap.setWordWrap(True)
-        cap.setStyleSheet(f"color: {INK_MUTED};")
         apps_card.add(cap)
         self.apps_editor = ListEditor(self.config.always_allowed_apps, "App name (e.g. Notion)")
         self.apps_editor.changed.connect(
@@ -350,12 +339,10 @@ class AllowlistsPage(QWidget):
         apps_card.add(self.apps_editor)
         v.addWidget(apps_card)
 
-        # Domains
         domains_card = Card()
         domains_card.add(FieldLabel("Always-Allowed Domains"))
         cap2 = CaptionLabel('These domains are never blocked in Chrome. Enter bare domains without https:// (e.g. "schoology.com").')
         cap2.setWordWrap(True)
-        cap2.setStyleSheet(f"color: {INK_MUTED};")
         domains_card.add(cap2)
         self.domains_editor = ListEditor(self.config.always_allowed_domains, "Domain (e.g. schoology.com)")
         self.domains_editor.changed.connect(
@@ -440,7 +427,6 @@ class AdvancedPage(QWidget):
         debug_card.add(self.debug_toggle)
         v.addWidget(debug_card)
 
-        # Prompt editors
         v.addWidget(self._prompt_card(
             "Evaluate Reason Prompt",
             "Used when the user submits a justification for a blocked site/app.",
@@ -475,7 +461,6 @@ class AdvancedPage(QWidget):
         col.addWidget(FieldLabel(label))
         cap = CaptionLabel(subtitle)
         cap.setWordWrap(True)
-        cap.setStyleSheet(f"color: {INK_MUTED};")
         col.addWidget(cap)
         head.addLayout(col, 1)
         head.addWidget(ResetButton(lambda: self._reset_prompt(attr, te)))
@@ -486,7 +471,6 @@ class AdvancedPage(QWidget):
         ph.setStyleSheet(f"color: {INK_MUTED};")
         card.add(ph)
         hint = CaptionLabel("Leave empty to use the built-in default prompt.")
-        hint.setStyleSheet(f"color: {INK_MUTED};")
         card.add(hint)
 
         te = TextEdit()
@@ -515,10 +499,9 @@ class SettingsInterface(QWidget):
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(0)
 
-        # Internal sub-sidebar
         side = QFrame()
+        side.setObjectName("settingsSide")
         side.setFixedWidth(180)
-        side.setStyleSheet(f"background: {CARD}; border-right: 1px solid {BORDER};")
         sv = QVBoxLayout(side)
         sv.setContentsMargins(10, 22, 10, 14)
         sv.setSpacing(2)
@@ -550,11 +533,19 @@ class SettingsInterface(QWidget):
             sv.addWidget(row)
         sv.addStretch(1)
         h.addWidget(side)
-
-        # Detail
         h.addWidget(self.stack, 1)
 
+        self._apply_side_theme(is_dark())
+        register_for_theme(self._apply_side_theme)
+
         self._select(0)
+
+    def _apply_side_theme(self, dark: bool):
+        card = CARD_D if dark else "#F0EBE0"
+        border = BORDER_D if dark else BORDER
+        self.findChild(QFrame, "settingsSide").setStyleSheet(
+            f"#settingsSide {{ background: {card}; border-right: 1px solid {border}; }}"
+        )
 
     def _select(self, idx: int):
         self.stack.setCurrentIndex(idx)
@@ -563,8 +554,6 @@ class SettingsInterface(QWidget):
 
 
 class _SubNavRow(QWidget):
-    """Sub-sidebar row: icon + label, accent pill when selected."""
-
     clicked = Signal(bool)
 
     def __init__(self, label: str, icon, parent=None):
@@ -575,6 +564,7 @@ class _SubNavRow(QWidget):
         self._icon = icon
         self._selected = False
         self._build()
+        register_for_theme(lambda _: self._refresh())
 
     def _build(self):
         h = QHBoxLayout(self)
@@ -585,7 +575,6 @@ class _SubNavRow(QWidget):
         self._iw.setFixedSize(14, 14)
         h.addWidget(self._iw)
         self._lab = QLabel(self._label)
-        self._lab.setStyleSheet(f"color: {INK};")
         h.addWidget(self._lab)
         h.addStretch(1)
         self._refresh()
@@ -596,12 +585,15 @@ class _SubNavRow(QWidget):
             self._refresh()
 
     def _refresh(self):
+        dark = is_dark()
+        ink = INK_D if dark else INK_L
+        sel_bg = "#3A3020" if dark else "#FDF3E0"
         if self._selected:
-            self.setStyleSheet(f"background: #FDF3E0; border-radius: 7px;")
-            self._lab.setStyleSheet(f"color: {INK}; font-weight: 600;")
+            self.setStyleSheet(f"background: {sel_bg}; border-radius: 7px;")
+            self._lab.setStyleSheet(f"color: {ink}; font-weight: 600;")
         else:
             self.setStyleSheet("background: transparent;")
-            self._lab.setStyleSheet(f"color: {INK};")
+            self._lab.setStyleSheet(f"color: {ink};")
 
     def mousePressEvent(self, e):
         self.clicked.emit(True)

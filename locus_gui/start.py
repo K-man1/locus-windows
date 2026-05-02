@@ -19,17 +19,26 @@ from qfluentwidgets import (
 
 from focuslock.paths import COMMAND_PATH, STATE_PATH
 
-from .theme import ACCENT, ACCENT_MUTED, BORDER, CARD, DANGER, INK, INK_MUTED, serif
+from .theme import (
+    ACCENT, ACCENT_MUTED, BORDER, CARD, DANGER, INK, INK_MUTED, serif,
+    is_dark, register_for_theme,
+    CARD_D, BORDER_D, INK_D, INK_L, INK_MUTED_D, INK_MUTED_L,
+)
 
 
 def _make_card() -> QFrame:
     f = QFrame()
-    f.setObjectName("locusCard")
-    f.setStyleSheet(
-        f"#locusCard {{ background: {CARD}; border: 1px solid {BORDER}; "
+    f.setObjectName("startCard")
+    return f
+
+
+def _apply_card_style(card: QFrame, dark: bool):
+    card_bg = CARD_D if dark else CARD
+    border = BORDER_D if dark else BORDER
+    card.setStyleSheet(
+        f"#startCard {{ background: {card_bg}; border: 1px solid {border}; "
         f"border-radius: 12px; }}"
     )
-    return f
 
 
 # ── State ─────────────────────────────────────────────────────────────────────
@@ -200,6 +209,15 @@ class StartInterface(QWidget):
 
         root.addStretch(1)
 
+        self._apply_theme(is_dark())
+        register_for_theme(self._apply_theme)
+
+    def _apply_theme(self, dark: bool):
+        ink = INK_D if dark else INK_L
+        self.title.setStyleSheet(f"color: {ink}; margin-top: 14px;")
+        _apply_card_style(self.idle_card, dark)
+        _apply_card_style(self.active_card, dark)
+
     def _build_idle(self) -> QFrame:
         card = _make_card()
         v = QVBoxLayout(card)
@@ -207,7 +225,7 @@ class StartInterface(QWidget):
         v.setSpacing(10)
 
         cap = CaptionLabel("WHAT ARE YOU WORKING ON?")
-        cap.setStyleSheet(f"color: {INK_MUTED}; letter-spacing: 1.4px; font-weight: 600;")
+        cap.setStyleSheet(f"letter-spacing: 1.4px; font-weight: 600;")
         v.addWidget(cap)
 
         self.task_input = LineEdit()
@@ -239,7 +257,6 @@ class StartInterface(QWidget):
 
         self.session_sub = CaptionLabel("")
         self.session_sub.setAlignment(Qt.AlignCenter)
-        self.session_sub.setStyleSheet(f"color: {INK_MUTED};")
         v.addWidget(self.session_sub)
 
         v.addSpacing(10)
@@ -266,7 +283,9 @@ class StartInterface(QWidget):
             print(f"[locus] start poll error: {e}")
             return
         self.state = state
-        if state.session:
+
+        # Only show locked state when the daemon is actively running
+        if state.session and state.is_running:
             s = state.session
             self.badge.set_locked(True)
             self.status.setText("●  " + (s.display_name or s.title))
@@ -278,7 +297,9 @@ class StartInterface(QWidget):
             self.active_card.show()
         else:
             self.badge.set_locked(False)
+            dark = is_dark()
+            muted = INK_MUTED_D if dark else INK_MUTED
             self.status.setText("What do you want to focus on?" if state.is_running else "Starting up…")
-            self.status.setStyleSheet(f"color: {INK_MUTED}; margin-top: 4px;")
+            self.status.setStyleSheet(f"color: {muted}; margin-top: 4px;")
             self.active_card.hide()
             self.idle_card.show()
