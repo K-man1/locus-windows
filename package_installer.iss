@@ -28,7 +28,7 @@ ArchitecturesInstallIn64BitMode=x64
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "runonstartup"; Description: "Launch Locus when Windows starts"; GroupDescription: "Startup:"; Flags: checked
+Name: "runonstartup"; Description: "Launch Locus when Windows starts"; GroupDescription: "Startup:"
 
 [Files]
 ; Main executables built by PyInstaller
