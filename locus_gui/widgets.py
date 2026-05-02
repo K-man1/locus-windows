@@ -94,7 +94,11 @@ class ResetButton(TransparentToolButton):
     """Tiny circular-arrow reset button that lives on the right of a field row."""
 
     def __init__(self, on_reset: Callable[[], None], parent=None):
-        super().__init__(FIF.SYNC, parent)
+        # Subtle but critical: qfluentwidgets' two-arg (icon, parent) form
+        # internally calls self.__init__(parent), which on a subclass re-enters
+        # this __init__ and recurses forever. Pass only parent, set icon after.
+        super().__init__(parent)
+        self.setIcon(FIF.SYNC)
         self.setToolTip("Reset to default")
         self.setFixedSize(24, 24)
         self.clicked.connect(on_reset)
