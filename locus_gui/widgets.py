@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from qfluentwidgets import (
-    BodyLabel, CaptionLabel, CardWidget, FluentIcon as FIF, IconWidget,
+    BodyLabel, CaptionLabel, FluentIcon as FIF, IconWidget,
     LineEdit, PrimaryPushButton, PushButton, StrongBodyLabel, SubtitleLabel,
     TitleLabel, TransparentToolButton,
 )
@@ -51,15 +51,21 @@ class FieldLabel(QLabel):
         self.setStyleSheet(f"color: {INK_MUTED}; letter-spacing: 1.5px;")
 
 
-class Card(CardWidget):
-    """Locus-styled card — cream fill, subtle border, generous interior padding."""
+class Card(QFrame):
+    """Locus-styled card — cream fill, subtle border, generous interior padding.
+
+    Plain QFrame (not qfluentwidgets.CardWidget) to avoid layout-install
+    conflicts that caused infinite recursion when the framework's internal
+    layout collided with one installed here.
+    """
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        try:
-            self.setBorderRadius(12)
-        except AttributeError:
-            pass
+        self.setObjectName("locusCard")
+        self.setStyleSheet(
+            f"#locusCard {{ background: {CARD}; border: 1px solid {BORDER}; "
+            f"border-radius: 12px; }}"
+        )
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(20, 18, 20, 18)
         self._layout.setSpacing(12)

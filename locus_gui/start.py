@@ -10,16 +10,26 @@ from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from qfluentwidgets import (
-    BodyLabel, CaptionLabel, CardWidget, FluentIcon as FIF, LineEdit,
+    BodyLabel, CaptionLabel, FluentIcon as FIF, LineEdit,
     PrimaryPushButton, PushButton, StrongBodyLabel,
 )
 
 from focuslock.paths import COMMAND_PATH, STATE_PATH
 
-from .theme import ACCENT, ACCENT_MUTED, BORDER, DANGER, INK, INK_MUTED, serif
+from .theme import ACCENT, ACCENT_MUTED, BORDER, CARD, DANGER, INK, INK_MUTED, serif
+
+
+def _make_card() -> QFrame:
+    f = QFrame()
+    f.setObjectName("locusCard")
+    f.setStyleSheet(
+        f"#locusCard {{ background: {CARD}; border: 1px solid {BORDER}; "
+        f"border-radius: 12px; }}"
+    )
+    return f
 
 
 # ── State ─────────────────────────────────────────────────────────────────────
@@ -190,12 +200,8 @@ class StartInterface(QWidget):
 
         root.addStretch(1)
 
-    def _build_idle(self) -> CardWidget:
-        card = CardWidget()
-        try:
-            card.setBorderRadius(12)
-        except AttributeError:
-            pass
+    def _build_idle(self) -> QFrame:
+        card = _make_card()
         v = QVBoxLayout(card)
         v.setContentsMargins(22, 20, 22, 20)
         v.setSpacing(10)
@@ -220,12 +226,8 @@ class StartInterface(QWidget):
         v.addWidget(self.start_btn)
         return card
 
-    def _build_active(self) -> CardWidget:
-        card = CardWidget()
-        try:
-            card.setBorderRadius(12)
-        except AttributeError:
-            pass
+    def _build_active(self) -> QFrame:
+        card = _make_card()
         v = QVBoxLayout(card)
         v.setContentsMargins(22, 20, 22, 20)
         v.setSpacing(8)
