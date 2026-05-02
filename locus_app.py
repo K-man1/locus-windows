@@ -175,34 +175,55 @@ class LockBadge(QWidget):
             bg = QColor(ACCENT_MUTED)
             fg = QColor(ACCENT)
 
+        # Background circle
         p.setBrush(bg); p.setPen(Qt.NoPen)
         p.drawEllipse(0, 0, self.width(), self.height())
 
+        # Geometry — body roughly centered, shackle sits above
         cx = self.width() / 2
-        cy = self.height() / 2 + 4
-        body_w, body_h = 36, 28
-        bx, by = cx - body_w / 2, cy - body_h / 2
+        body_w, body_h = 38, 30
+        bx = cx - body_w / 2
+        by = self.height() / 2 - 2          # body top
 
-        path = QPainterPath()
-        path.addRoundedRect(bx, by, body_w, body_h, 5, 5)
+        sw = 26                              # shackle outer width
+        leg_x_left  = cx - sw / 2
+        leg_x_right = cx + sw / 2
+        arch_top_y  = by - 18                # how high the arch peaks
+        leg_bottom  = by + 1                 # legs end flush with body top
+
+        # Body — solid filled rounded rect
+        body_path = QPainterPath()
+        body_path.addRoundedRect(bx, by, body_w, body_h, 6, 6)
         p.setBrush(fg); p.setPen(Qt.NoPen)
-        p.drawPath(path)
+        p.drawPath(body_path)
 
-        # Shackle
-        p.setBrush(Qt.NoBrush)
-        pen = QPen(fg); pen.setWidth(4); pen.setCapStyle(Qt.RoundCap)
+        # Keyhole dot inside body for a touch of detail
+        p.setBrush(QColor(255, 255, 255, 200))
+        kh = 5
+        p.drawEllipse(int(cx - kh / 2), int(by + body_h / 2 - kh / 2 - 2), kh, kh)
+
+        # Shackle — stroked, no fill
+        pen = QPen(fg)
+        pen.setWidth(4)
+        pen.setCapStyle(Qt.RoundCap)
+        pen.setJoinStyle(Qt.RoundJoin)
         p.setPen(pen)
-        sw, sh = 22, 20
-        sx = cx - sw / 2
-        sy = by - sh + 6
-        arch = QPainterPath()
-        arch.moveTo(sx, sy + sh)
-        arch.arcTo(sx, sy, sw, sh * 2, 180, -180)
-        p.drawPath(arch)
-        if not self._locked:
-            # Cut the right leg to suggest "open"
-            p.setBrush(bg); p.setPen(Qt.NoPen)
-            p.drawRect(int(sx + sw - 5), int(sy + sh - 3), 9, 12)
+        p.setBrush(Qt.NoBrush)
+
+        shackle = QPainterPath()
+        if self._locked:
+            # Closed: U-shape attached at both feet
+            shackle.moveTo(leg_x_left, leg_bottom)
+            shackle.lineTo(leg_x_left, arch_top_y + 8)
+            shackle.arcTo(leg_x_left, arch_top_y, sw, 16, 180, -180)
+            shackle.lineTo(leg_x_right, leg_bottom)
+        else:
+            # Open: left leg attached, right leg lifted (stops short)
+            shackle.moveTo(leg_x_left, leg_bottom)
+            shackle.lineTo(leg_x_left, arch_top_y + 8)
+            shackle.arcTo(leg_x_left, arch_top_y, sw, 16, 180, -180)
+            shackle.lineTo(leg_x_right, arch_top_y + 12)
+        p.drawPath(shackle)
 
 
 # ── Start interface ───────────────────────────────────────────────────────────
