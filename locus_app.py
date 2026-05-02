@@ -29,8 +29,23 @@ from locus_gui.theme import ACCENT, load_fonts, resource_dir, apply_appearance
 _daemon_proc: subprocess.Popen | None = None
 
 
+def _daemon_already_running() -> bool:
+    """Return True if a live locusd process owns the lock file."""
+    from focuslock.paths import LOCK_PATH
+    try:
+        with open(LOCK_PATH) as f:
+            pid = int(f.read().strip())
+        os.kill(pid, 0)  # signal 0 = liveness probe; raises if dead
+        return True
+    except Exception:
+        return False
+
+
 def start_daemon():
     global _daemon_proc
+    if _daemon_already_running():
+        print("[locus] daemon already running, skipping launch")
+        return
     try:
         base = resource_dir()
         if getattr(sys, "frozen", False):
