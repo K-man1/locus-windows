@@ -9,3 +9,4 @@ icalendar>=5.0.0
 recurring-ical-events>=2.1.0
 win10toast>=0.9
 PySide6>=6.6.0
+PySide6-Fluent-Widgets>=1.6.0
