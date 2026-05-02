@@ -19,6 +19,7 @@ from focuslock.paths import APP_DATA_DIR
 from locus_gui.analytics import AnalyticsInterface
 from locus_gui.config import ConfigStore
 from locus_gui.connectors import ConnectorsInterface
+from locus_gui.prompt_handler import PromptHandler
 from locus_gui.settings import SettingsInterface
 from locus_gui.start import StartInterface
 from locus_gui.theme import ACCENT, load_fonts, resource_dir, apply_appearance
@@ -27,6 +28,24 @@ from locus_gui.theme import ACCENT, load_fonts, resource_dir, apply_appearance
 # ── Daemon launch ─────────────────────────────────────────────────────────────
 
 _daemon_proc: subprocess.Popen | None = None
+
+
+def _quit_old_locus_app():
+    """On macOS, quit the installed Swift Locus app so it doesn't intercept prompts."""
+    if sys.platform != "darwin":
+        return
+    try:
+        result = subprocess.run(
+            ["pgrep", "-x", "FocusLockApp"],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            subprocess.run(
+                ["osascript", "-e", 'tell application "Locus" to quit'],
+                capture_output=True, timeout=3,
+            )
+    except Exception as e:
+        print(f"[locus] could not quit old Locus app: {e}")
 
 
 def _daemon_already_running() -> bool:
@@ -86,6 +105,9 @@ class MainWindow(FluentWindow):
 
         self.navigationInterface.setExpandWidth(220)
 
+        # Blocking-dialog handler (replaces the Swift app's prompt handling)
+        self._prompt_handler = PromptHandler(self)
+
         # Re-apply theme when config is saved (e.g. reload from disk)
         config.changed.connect(lambda: apply_appearance(config.appearance))
 
@@ -114,6 +136,9 @@ def main():
     # Apply initial theme before building the window so all widgets start correctly
     apply_appearance(config.appearance)
     setThemeColor(QColor(ACCENT))
+
+    # Quit the old Swift Locus GUI so it doesn't intercept blocking dialogs
+    _quit_old_locus_app()
 
     start_daemon()
 
