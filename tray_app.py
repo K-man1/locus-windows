@@ -266,12 +266,21 @@ _daemon_proc = None
 
 
 def _start_daemon():
-    """Launch locusd_entry.py as a separate subprocess."""
+    """Launch the daemon as a separate subprocess.
+
+    When frozen by PyInstaller, sys.executable is Locus.exe — running it again
+    would spawn infinite tray instances. Instead, run the sibling locusd.exe.
+    In dev mode (plain Python), run locusd_entry.py with the current interpreter.
+    """
     global _daemon_proc
     try:
-        entry = os.path.join(os.path.dirname(os.path.abspath(__file__)), "locusd_entry.py")
+        base_dir = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__))
+        if getattr(sys, "frozen", False):
+            cmd = [os.path.join(base_dir, "locusd.exe")]
+        else:
+            cmd = [sys.executable, os.path.join(base_dir, "locusd_entry.py")]
         _daemon_proc = subprocess.Popen(
-            [sys.executable, entry],
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
