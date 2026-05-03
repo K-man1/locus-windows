@@ -570,6 +570,18 @@ def _acquire_single_instance_lock():
     state.json and the UI flickers between session/no-session views.
     """
     try:
+        import psutil
+        _pid_exists = psutil.pid_exists
+    except Exception:
+        # Fallback for environments without psutil
+        def _pid_exists(pid: int) -> bool:
+            try:
+                os.kill(pid, 0)
+                return True
+            except (ProcessLookupError, OSError):
+                return False
+
+    try:
         os.makedirs(os.path.dirname(LOCK_PATH), exist_ok=True)
         if os.path.exists(LOCK_PATH):
             try:
@@ -578,16 +590,10 @@ def _acquire_single_instance_lock():
             except Exception:
                 other_pid = 0
             if other_pid and other_pid != os.getpid():
-                try:
-                    os.kill(other_pid, 0)  # signal 0 = liveness probe
+                if _pid_exists(other_pid):
                     print(f"[Locus] Another locusd is already running (pid {other_pid}); exiting.")
                     raise SystemExit(0)
-                except ProcessLookupError:
-                    pass  # stale lock — fall through and overwrite
-                except PermissionError:
-                    # Process exists but is owned by someone else; treat as live.
-                    print(f"[Locus] locusd pid {other_pid} appears to be running; exiting.")
-                    raise SystemExit(0)
+                # else: stale lock — fall through and overwrite
         with open(LOCK_PATH, "w") as f:
             f.write(str(os.getpid()))
     except SystemExit:

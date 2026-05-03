@@ -69,4 +69,4 @@ if (-not $BrowserLaunched) {
 
 # ── Start Locus ───────────────────────────────────────────────────────────────
 Write-Host "Starting Locus..."
-& $PythonExe tray_app.py
+& $PythonExe locus_app.py

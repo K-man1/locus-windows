@@ -52,10 +52,10 @@ def _daemon_already_running() -> bool:
     """Return True if a live locusd process owns the lock file."""
     from focuslock.paths import LOCK_PATH
     try:
+        import psutil
         with open(LOCK_PATH) as f:
             pid = int(f.read().strip())
-        os.kill(pid, 0)  # signal 0 = liveness probe; raises if dead
-        return True
+        return psutil.pid_exists(pid)
     except Exception:
         return False
 
