@@ -60,6 +60,36 @@ def _daemon_already_running() -> bool:
         return False
 
 
+_BROWSER_CANDIDATES = [
+    (r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe",    "Chrome"),
+    (r"%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe",   "Edge"),
+    (r"%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe", "Brave"),
+    (r"%LOCALAPPDATA%\Vivaldi\Application\vivaldi.exe",         "Vivaldi"),
+]
+
+
+def _launch_browser_with_debug_port():
+    """Launch a Chromium browser with --remote-debugging-port=9222 if not already open."""
+    import requests
+    try:
+        requests.get("http://localhost:9222/json", timeout=1)
+        print("[locus] browser already listening on port 9222")
+        return
+    except Exception:
+        pass
+
+    for template, name in _BROWSER_CANDIDATES:
+        path = os.path.expandvars(template)
+        if os.path.exists(path):
+            print(f"[locus] launching {name} with debug port 9222")
+            subprocess.Popen(
+                [path, "--remote-debugging-port=9222", "--remote-allow-origins=*"],
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            return
+    print("[locus] no supported browser found — website blocking disabled")
+
+
 def start_daemon():
     global _daemon_proc
     if _daemon_already_running():
@@ -140,6 +170,7 @@ def main():
     # Quit the old Swift Locus GUI so it doesn't intercept blocking dialogs
     _quit_old_locus_app()
 
+    _launch_browser_with_debug_port()
     start_daemon()
 
     win = MainWindow(config)

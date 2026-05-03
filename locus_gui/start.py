@@ -79,7 +79,7 @@ def read_state() -> BackendState:
         events=raw.get("events", []) or [],
         session=sess,
         updated_at=updated,
-        is_running=(time.time() - updated) < 120,
+        is_running=(time.time() - updated) < 300,
     )
 
 

@@ -112,11 +112,10 @@ class FocusLockApp:
         refresh_secs = self.config.get("schedule_refresh_minutes", 5) * 60
         last_refresh = 0
         while True:
+            self._write_state()  # always write before any slow network calls
             if time.time() - last_refresh >= refresh_secs:
                 self._refresh_schedule()
                 last_refresh = time.time()
-            else:
-                self._write_state()
             self._write_analytics()
             time.sleep(30)
 
