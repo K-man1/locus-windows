@@ -53,27 +53,22 @@ WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.wintypes.BOOL,
                                   ctypes.wintypes.LPARAM)
 
 
-def _enum_windows_callback(hwnd, pid_set_ptr):
-    """Called by EnumWindows for every top-level window."""
-    # Must be visible and have a non-empty title
-    if not _user32.IsWindowVisible(hwnd):
-        return True
-    length = _user32.GetWindowTextLengthW(hwnd)
-    if length == 0:
-        return True
-    pid = ctypes.wintypes.DWORD(0)
-    _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-    if pid.value:
-        pid_set = ctypes.cast(pid_set_ptr, ctypes.py_object).value
-        pid_set.add(pid.value)
-    return True
-
-
 def _get_running_gui_pids() -> Set[int]:
     """Return PIDs of all processes that own a visible titled window."""
     pid_set: Set[int] = set()
-    cb = WNDENUMPROC(_enum_windows_callback)
-    _user32.EnumWindows(cb, ctypes.cast(ctypes.py_object(pid_set), ctypes.c_void_p))
+
+    def _callback(hwnd: int, _lParam: int) -> bool:
+        if not _user32.IsWindowVisible(hwnd):
+            return True
+        if _user32.GetWindowTextLengthW(hwnd) == 0:
+            return True
+        pid = ctypes.wintypes.DWORD(0)
+        _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value:
+            pid_set.add(pid.value)
+        return True
+
+    _user32.EnumWindows(WNDENUMPROC(_callback), 0)
     return pid_set
 
 

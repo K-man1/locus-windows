@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QScrollArea, QStackedWidget, QVBoxLayout, QWidget,
+    QSizePolicy,
 )
 
 from qfluentwidgets import (
@@ -286,8 +287,58 @@ class BlockingPage(QWidget):
         harsh.add(self.harsh_seg)
         v.addWidget(harsh)
 
+        chrome_card = Card()
+        chrome_card.add(FieldLabel("Chrome Integration"))
+        chrome_cap = CaptionLabel(
+            "Locus needs Chrome to launch with remote debugging so it can monitor and block tabs. "
+            "Click below to patch your Chrome shortcuts — after this, Chrome will always open "
+            "with the required flag automatically."
+        )
+        chrome_cap.setWordWrap(True)
+        chrome_card.add(chrome_cap)
+
+        chrome_btn_row = QHBoxLayout()
+        from qfluentwidgets import PrimaryPushButton as _PPB
+        self._chrome_btn = _PPB(FIF.LINK, "  Set Up Chrome Integration")
+        self._chrome_btn.setMinimumHeight(36)
+        self._chrome_btn.clicked.connect(self._run_chrome_setup)
+        chrome_btn_row.addWidget(self._chrome_btn)
+        chrome_btn_row.addStretch(1)
+        chrome_card.add_layout(chrome_btn_row)
+
+        self._chrome_status = CaptionLabel("")
+        self._chrome_status.setWordWrap(True)
+        chrome_card.add(self._chrome_status)
+        v.addWidget(chrome_card)
+        self._refresh_chrome_status()
+
         v.addWidget(SaveRow(self.config.save, self.config.load))
         v.addStretch(1)
+
+    def _refresh_chrome_status(self):
+        try:
+            from locus_app import chrome_launcher_setup_done
+            done = chrome_launcher_setup_done()
+        except Exception:
+            done = False
+        if done:
+            self._chrome_status.setText("✓ Chrome shortcuts are patched.")
+            self._chrome_status.setStyleSheet("color: #2EA66B;")
+            self._chrome_btn.setText("  Re-run Setup")
+        else:
+            self._chrome_status.setText("Not set up yet.")
+            self._chrome_status.setStyleSheet("")
+
+    def _run_chrome_setup(self):
+        try:
+            from locus_app import setup_chrome_launcher
+            ok, msg = setup_chrome_launcher()
+        except Exception as e:
+            ok, msg = False, str(e)
+        self._chrome_status.setText(msg)
+        self._chrome_status.setStyleSheet("color: #2EA66B;" if ok else "color: #D6453A;")
+        if ok:
+            self._chrome_btn.setText("  Re-run Setup")
 
     def _with_caption(self, slider_wrap: QWidget, caption: str) -> QWidget:
         wrap = QWidget()
