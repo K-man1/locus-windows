@@ -247,6 +247,61 @@ class _ResultDialog(_LocusDialog):
             self.accept()
 
 
+# ── Long session dialog ───────────────────────────────────────────────────
+
+class _LongSessionDialog(_LocusDialog):
+    def __init__(self, prompt: dict, parent=None):
+        self._prompt = prompt
+        super().__init__(parent)
+        self.setFixedWidth(380)
+
+    def _build_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(28, 24, 28, 24)
+        root.setSpacing(14)
+
+        session = self._prompt.get("session_name", "Focus Session")
+
+        lbl_title = QLabel("Still focusing?")
+        lbl_title.setFont(serif(22))
+        root.addWidget(lbl_title)
+
+        lbl_sess = CaptionLabel(f"Session: {session}")
+        root.addWidget(lbl_sess)
+
+        lbl_body = BodyLabel("Your session has been running for over 5 hours.")
+        lbl_body.setWordWrap(True)
+        root.addWidget(lbl_body)
+
+        lbl_hint = CaptionLabel("If you don't respond, the session will end automatically.")
+        lbl_hint.setWordWrap(True)
+        root.addWidget(lbl_hint)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+
+        keep_btn = PrimaryPushButton("Keep Going")
+        keep_btn.setMinimumHeight(36)
+        keep_btn.clicked.connect(self._on_keep)
+        btn_row.addWidget(keep_btn, 1)
+
+        end_btn = PushButton("End Session")
+        end_btn.setMinimumHeight(36)
+        end_btn.clicked.connect(self._on_end)
+        btn_row.addWidget(end_btn, 1)
+
+        root.addLayout(btn_row)
+        self.adjustSize()
+
+    def _on_keep(self):
+        self.result_data = {"action": "continue"}
+        self.accept()
+
+    def _on_end(self):
+        self.result_data = {"action": "end"}
+        self.accept()
+
+
 # ── Handler widget ────────────────────────────────────────────────────────
 
 class PromptHandler(QWidget):
@@ -299,6 +354,10 @@ class PromptHandler(QWidget):
             dlg = _ResultDialog(prompt, parent=parent)
             dlg.exec()
             resp = {"action": "ok"}
+        elif ptype == "long_session":
+            dlg = _LongSessionDialog(prompt, parent=parent)
+            dlg.exec()
+            resp = dlg.result_data
         else:
             resp = {"action": "cancel"}
 

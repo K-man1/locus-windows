@@ -26,7 +26,7 @@ _PROMPT_TIMEOUT_SECONDS = 600
 
 # ── Core IPC ──────────────────────────────────────────────────────────────────
 
-def _prompt(prompt: dict) -> dict:
+def _prompt(prompt: dict, timeout: int = _PROMPT_TIMEOUT_SECONDS) -> dict:
     """Write prompt.json, block until the GUI writes a matching response.json."""
     with _prompt_lock:
         pid = uuid.uuid4().hex
@@ -47,7 +47,7 @@ def _prompt(prompt: dict) -> dict:
             print(f"[Locus] prompt write failed: {e}")
             return {}
 
-        deadline = time.time() + _PROMPT_TIMEOUT_SECONDS
+        deadline = time.time() + timeout
         while time.time() < deadline:
             try:
                 with open(RESPONSE_PATH, encoding="utf-8") as f:
@@ -145,6 +145,15 @@ def ask_off_topic_reason(
     if action not in ("submit", "cancel"):
         action = "cancel"
     return action, (resp.get("reason") or "").strip()
+
+
+def ask_long_session(session_name: str, timeout: int = 300) -> str:
+    """Returns 'continue' or 'end'. Empty response (timeout) → 'end'."""
+    resp = _prompt({
+        "type": "long_session",
+        "session_name": session_name,
+    }, timeout=timeout)
+    return "continue" if resp.get("action") == "continue" else "end"
 
 
 def show_override_wrong():
