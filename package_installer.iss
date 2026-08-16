@@ -1,5 +1,5 @@
 #define MyAppName "Locus"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "K-man1"
 #define MyAppURL "https://locusfocusapp.netlify.app"
 #define MyAppExeName "Locus.exe"
