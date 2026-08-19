@@ -25,9 +25,3 @@ Start-Process "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe" `
 ```
 - Python 3.10+
 - pyinstaller to install the .exe
-
-## Screeshots
-- Main Dashboard: ![Main Dashboard](dashboard.png)
-- Analytics View: ![Analytics View](analytics.png)
-- Dark Mode: ![Dark Mode](darkmode.png)
-- Blocking View: ![Blocking Settings](blocked.png)
